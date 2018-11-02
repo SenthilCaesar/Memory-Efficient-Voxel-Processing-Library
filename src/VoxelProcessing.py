@@ -12,8 +12,10 @@ class VoxelProcessing:
         self.struct_element = structure
         self.arr_map = np.load(filename, mmap_mode="r")
         
-    def print_arr_shape(self):
-        print(self.arr_map.shape)
+    def get_CRS_mem_size(self, CRS):
+        total = CRS.data.nbytes + CRS.indptr.nbytes + CRS.indices.nbytes
+        mem =  total / 1000000000
+        print("CRS Memory size = ", mem, "Gb")
         
     def convert_to_2d(self):
         arr_2d = self.arr_map.reshape((self.arr_map.shape[0]*
@@ -83,8 +85,9 @@ class VoxelProcessing:
             
     def convert_to_3d(self, i, block_2d, operation, n_blocks, fake_ghost):
       
-        n_splits = (self.arr_map.shape[0]*
-                    self.arr_map.shape[1])//(self.y_dim*10)
+        #n_splits = (self.arr_map.shape[0]*self.arr_map.shape[1])//(self.y_dim*10)
+        
+        n_splits = self.x_dim // n_blocks
 
         if i == 0 or i == n_blocks -1:
             n_splits += 1 * fake_ghost
