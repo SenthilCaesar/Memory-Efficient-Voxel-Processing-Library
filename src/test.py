@@ -18,6 +18,7 @@ def runIt(density, dim, blocks, files, structure, operation):
             np.save(filename, array3d)
             del data, array3d
             time.sleep(60)
+            
     for m in range(0, len(files)):
         for n in range(0, len(blocks)):
             print("---------------------------------------")
@@ -47,4 +48,4 @@ if __name__ == '__main__':
     blocks = [10, 20]
     files = []
     structure = np.ones((3,3,3))
-    operation = 'dilation'
+    operation = 'grey_dilation'
