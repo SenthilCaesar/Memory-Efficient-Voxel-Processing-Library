@@ -15,14 +15,14 @@ if __name__ == '__main__':
 
     # Main
     start_t = datetime.datetime.now()
-    data = VoxelProcessing(filename, dimension, structure)
+    data = VoxelProcessing(filename, dimension, n_block, structure)
     arr_2d = data.convert_to_2d()
     data.compressed_storage(arr_2d)
     CRS = data.load_compressed()
     data.get_CRS_mem_size(CRS)
-    data.Morphology(CRS, n_block, operation)
+    data.Morphology(CRS, operation)
     data.merge_blocks()
     end_t = datetime.datetime.now()
     total_t = end_t - start_t
-    print("Time taken = ", total_t.seconds)
+    print("Time taken = ", total_t.seconds, "sec")
     data.print_memory_usage()
