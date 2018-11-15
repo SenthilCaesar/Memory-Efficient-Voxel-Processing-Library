@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 import os
 from scipy import sparse
@@ -6,25 +7,31 @@ import subprocess
 
 class VoxelProcessing:
 
-    def __init__(self, filename, dimension, structure):
+    def __init__(self, filename, dimension, n_block, structure):
         '''
         Parameters
         ----------
         filename  : str
                     Name of the Input .npy file
         dimension : list
-                    list contain three value which represents the dimension
+                    list contain three value which represnts the dimension
                     of the 3D array
+        n_block   : int
+                    Total no of blocks
         structure : numpy array
                     Structuring element used for the Morphological Operation
         '''
         self.x_dim = dimension[0]
         self.y_dim = dimension[1]
         self.z_dim = dimension[2]
+        self.n_block = n_block
         self.my_list = []
         self.add_mem()
         self.struct_element = structure
         self.arr_map = np.load(filename, mmap_mode="r")
+        print()
+        print("Filename = ", filename)
+        print("No of blocks = ", self.n_block)
 
     def get_CRS_mem_size(self, CRS):
         '''
@@ -91,15 +98,13 @@ class VoxelProcessing:
             self.add_mem()
             return CRS_RAM
 
-    def Morphology(self, CRS, n_blocks, operation):
+    def Morphology(self, CRS, operation):
         '''
         Parameters:
         -----------
         CRS      : array_like
                    sparse matrix with Non-zero stored elements
                    in compressed sparse Row format
-        n_blocks : int
-                   Split an array into n_blocks of sub-arrays
         operation : str
                     Morphological Operation
         '''
@@ -108,29 +113,28 @@ class VoxelProcessing:
         splits = (self.arr_map.shape[0]*
                     self.arr_map.shape[1])//(self.y_dim*10)
         x = CRS.shape[1] // (splits*10)
-        print(splits, x, self.arr_map.shape[0], self.arr_map.shape[1])
-        end_index = int(CRS.shape[1] / n_blocks) + (x * fake_ghost)
-        jump = int(CRS.shape[1] / n_blocks)
+        end_index = int(CRS.shape[1] / self.n_block) + (x * fake_ghost)
+        jump = int(CRS.shape[1] / self.n_block)
         self.f_handle = open('output/binary', 'wb')
         self.add_mem()
 
-        if n_blocks == 1:
+        if self.n_block == 1:
               start_index = 0
               end_index = CRS.shape[1]
 
-        for i in range(0, n_blocks):
+        for i in range(0, self.n_block):
             block_2d = CRS[:,start_index:end_index].toarray()
             self.add_mem()
             block_2d = block_2d.T
             start_index = end_index - (x * fake_ghost * 2)
-            if i == n_blocks -2:
+            if i == self.n_block -2:
                end_index = end_index + jump - x
             else:
                 end_index = end_index + jump
-            self.convert_to_3d(i, block_2d, operation, n_blocks, fake_ghost)
+            self.convert_to_3d(i, block_2d, operation, fake_ghost)
         self.f_handle.close()
 
-    def convert_to_3d(self, i, block_2d, operation, n_blocks, fake_ghost):
+    def convert_to_3d(self, i, block_2d, operation, fake_ghost):
         '''
         Parameters:
         i          : int
@@ -139,15 +143,13 @@ class VoxelProcessing:
                      sub-array
         operation  : str
                      Morphological Operation
-        n_blocks   : int
-                     Total no of blocks
         fake_ghost : int
                      No of layers of ghost cells
         '''
 
-        n_splits = self.x_dim // n_blocks
-        if n_blocks != 1:
-                if i == 0 or i == n_blocks -1:
+        n_splits = self.x_dim // self.n_block
+        if self.n_block != 1:
+                if i == 0 or i == self.n_block -1:
                         n_splits += 1 * fake_ghost
                 else:
                         n_splits += 2 * fake_ghost
@@ -158,39 +160,39 @@ class VoxelProcessing:
         if operation == 'grey_dilation':
             print("Performing Dilation on block ", i)
             self.block_grey_dilation(block_3d, i, self.struct_element,
-                                n_blocks, n_splits, fake_ghost)
+                                     n_splits, fake_ghost)
         if operation == 'grey_erosion':
             print("Performing Erosion on block ", i)
             self.block_grey_erosion(block_3d, i, self.struct_element,
-                                    n_blocks, n_splits, fake_ghost)
+                                    n_splits, fake_ghost)
 
     def block_grey_dilation(self, block_3d, i, struct_element,
-                       n_blocks, n_splits, fake_ghost):
+                            n_splits, fake_ghost):
 
         dilated = ndimage.grey_dilation(block_3d, structure=struct_element)
         self.add_mem()
-        if n_blocks != 1:
-                trimmed = self.trim_ghostCells(dilated, i, n_blocks, n_splits, fake_ghost)
+        if self.n_block != 1:
+                trimmed = self.trim_ghostCells(dilated, i, n_splits, fake_ghost)
                 trimmed.tofile(self.f_handle)
                 self.add_mem()
-                print("Block Shape = ", trimmed.shape)
+                #print("Block Shape = ", trimmed.shape)
         else:
                 dilated.tofile(self.f_handle)
 
     def block_grey_erosion(self, block_3d, i, struct_element,
-                       n_blocks, n_splits, fake_ghost):
+                           n_splits, fake_ghost):
 
         eroded = ndimage.grey_erosion(block_3d, structure=struct_element)
         self.add_mem()
-        if n_blocks != 1:
-                trimmed = self.trim_ghostCells(eroded, i, n_blocks, n_splits, fake_ghost)
+        if self.n_block != 1:
+                trimmed = self.trim_ghostCells(eroded, i, n_splits, fake_ghost)
                 trimmed.tofile(self.f_handle)
                 self.add_mem()
-                print("Block Shape = ", trimmed.shape)
+                #print("Block Shape = ", trimmed.shape)
         else:
                 dilated.tofile(self.f_handle)
 
-    def trim_ghostCells(self, block_3d, i, n_blocks, n_splits, fake_ghost):
+    def trim_ghostCells(self, block_3d, i, n_splits, fake_ghost):
         '''
         Parameters:
         -----------
@@ -198,8 +200,6 @@ class VoxelProcessing:
                      sub-array of size (n_splits x self.y x self.z)
         i          : int
                      sub-array block number
-        n_blocks   : int
-                     Total no of blocks
         n_splits   : int
                      z axis dimension length
         fake_ghost : int
@@ -212,7 +212,7 @@ class VoxelProcessing:
         '''
         if i == 0:
             block_3d = block_3d[0:n_splits-1*fake_ghost,:,:]
-        elif i == n_blocks - 1:
+        elif i == self.n_block - 1:
             block_3d = block_3d[1*fake_ghost:n_splits,:,:]
         else:
             block_3d = block_3d[1*fake_ghost:n_splits-1*fake_ghost,:,:]
@@ -232,6 +232,7 @@ class VoxelProcessing:
             print('Cannot open', filename)
             return 0
         else:
+            # np.memmap creates a memory-map to an array stored in a binary file on disk.
             merging = np.memmap(filename, dtype=np.float32,
                                 mode='r', shape=(self.x_dim,self.y_dim,self.z_dim))
             self.add_mem()
@@ -252,5 +253,5 @@ class VoxelProcessing:
         l = len(self.my_list)
         total = sum(self.my_list[1:l])
         avg = total //(l - 1)
-        print("Average Memory Usage = ", self.my_list[0] - avg, " MB")
+        print("Average Memory Usage = ", self.my_list[0] - avg, "MB")
         print()
