@@ -1,3 +1,4 @@
+
 from __future__ import division
 import numpy as np
 import os
@@ -7,7 +8,7 @@ import subprocess
 
 class VoxelProcessing:
 
-    def __init__(self, filename, dimension, n_block, structure):
+    def __init__(self, filename, dimension, n_block, structure, fakeGhost):
         '''
         Parameters
         ----------
@@ -25,6 +26,7 @@ class VoxelProcessing:
         self.y_dim = dimension[1]
         self.z_dim = dimension[2]
         self.n_block = n_block
+        self.fakeGhost = fakeGhost
         self.my_list = []
         self.add_mem()
         self.struct_element = structure
@@ -109,11 +111,10 @@ class VoxelProcessing:
                     Morphological Operation
         '''
         start_index = 0
-        fake_ghost = 3
         splits = (self.arr_map.shape[0]*
                     self.arr_map.shape[1])//(self.y_dim*10)
         x = CRS.shape[1] // (splits*10)
-        end_index = int(CRS.shape[1] / self.n_block) + (x * fake_ghost)
+        end_index = int(CRS.shape[1] / self.n_block) + (x * self.fakeGhost)
         jump = int(CRS.shape[1] / self.n_block)
         self.f_handle = open('output/binary', 'wb')
         self.add_mem()
@@ -126,15 +127,15 @@ class VoxelProcessing:
             block_2d = CRS[:,start_index:end_index].toarray()
             self.add_mem()
             block_2d = block_2d.T
-            start_index = end_index - (x * fake_ghost * 2)
+            start_index = end_index - (x * self.fakeGhost * 2)
             if i == self.n_block -2:
                end_index = end_index + jump - x
             else:
                 end_index = end_index + jump
-            self.convert_to_3d(i, block_2d, operation, fake_ghost)
+            self.convert_to_3d(i, block_2d, operation)
         self.f_handle.close()
 
-    def convert_to_3d(self, i, block_2d, operation, fake_ghost):
+    def convert_to_3d(self, i, block_2d, operation):
         '''
         Parameters:
         i          : int
@@ -150,29 +151,29 @@ class VoxelProcessing:
         n_splits = self.x_dim // self.n_block
         if self.n_block != 1:
                 if i == 0 or i == self.n_block -1:
-                        n_splits += 1 * fake_ghost
+                        n_splits += 1 * self.fakeGhost
                 else:
-                        n_splits += 2 * fake_ghost
+                        n_splits += 2 * self.fakeGhost
 
         # 2d block i reshape to 3d
         block_3d = block_2d.reshape(n_splits, self.y_dim, self.z_dim)
         self.add_mem()
         if operation == 'grey_dilation':
-            print("Performing Dilation on block ", i)
+            #print("Performing Dilation on block ", i)
             self.block_grey_dilation(block_3d, i, self.struct_element,
-                                     n_splits, fake_ghost)
+                                     n_splits)
         if operation == 'grey_erosion':
-            print("Performing Erosion on block ", i)
+            #print("Performing Erosion on block ", i)
             self.block_grey_erosion(block_3d, i, self.struct_element,
-                                    n_splits, fake_ghost)
+                                    n_splits)
 
     def block_grey_dilation(self, block_3d, i, struct_element,
-                            n_splits, fake_ghost):
+                            n_splits):
 
         dilated = ndimage.grey_dilation(block_3d, structure=struct_element)
         self.add_mem()
         if self.n_block != 1:
-                trimmed = self.trim_ghostCells(dilated, i, n_splits, fake_ghost)
+                trimmed = self.trim_ghostCells(dilated, i, n_splits)
                 trimmed.tofile(self.f_handle)
                 self.add_mem()
                 #print("Block Shape = ", trimmed.shape)
@@ -180,19 +181,19 @@ class VoxelProcessing:
                 dilated.tofile(self.f_handle)
 
     def block_grey_erosion(self, block_3d, i, struct_element,
-                           n_splits, fake_ghost):
+                           n_splits):
 
         eroded = ndimage.grey_erosion(block_3d, structure=struct_element)
         self.add_mem()
         if self.n_block != 1:
-                trimmed = self.trim_ghostCells(eroded, i, n_splits, fake_ghost)
+                trimmed = self.trim_ghostCells(eroded, i, n_splits)
                 trimmed.tofile(self.f_handle)
                 self.add_mem()
                 #print("Block Shape = ", trimmed.shape)
         else:
                 dilated.tofile(self.f_handle)
 
-    def trim_ghostCells(self, block_3d, i, n_splits, fake_ghost):
+    def trim_ghostCells(self, block_3d, i, n_splits):
         '''
         Parameters:
         -----------
@@ -211,11 +212,11 @@ class VoxelProcessing:
                 array is returned
         '''
         if i == 0:
-            block_3d = block_3d[0:n_splits-1*fake_ghost,:,:]
+            block_3d = block_3d[0:n_splits-1*self.fakeGhost,:,:]
         elif i == self.n_block - 1:
-            block_3d = block_3d[1*fake_ghost:n_splits,:,:]
+            block_3d = block_3d[1*self.fakeGhost:n_splits,:,:]
         else:
-            block_3d = block_3d[1*fake_ghost:n_splits-1*fake_ghost,:,:]
+            block_3d = block_3d[1*self.fakeGhost:n_splits-1*self.fakeGhost,:,:]
         self.add_mem()
         return block_3d
 
