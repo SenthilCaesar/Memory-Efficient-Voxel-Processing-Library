@@ -7,16 +7,17 @@ import datetime
 if __name__ == '__main__':
 
     # Parameters
-    dimension = [550, 227, 1683]
-    filename = 'arr_0.npy'
+    dimension = [2000, 1500, 1500]
+    filename = '2000_1500_1500_den10.npy'
     #a = np.random.uniform(size=(3,9))
     structure = np.ones((3,3,3))
     operation = 'grey_dilation'
-    n_block = 10
+    n_block = 2
+    fakeGhost = 1
 
     # Main
     start_t = datetime.datetime.now()
-    data = VoxelProcessing(filename, dimension, n_block, structure)
+    data = VoxelProcessing(filename, dimension, n_block, structure, fakeGhost)
     arr_2d = data.convert_to_2d()
     data.compressed_storage(arr_2d)
     CRS = data.load_compressed()
