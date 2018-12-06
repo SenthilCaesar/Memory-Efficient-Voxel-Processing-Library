@@ -3,16 +3,17 @@ from VoxelProcessing import VoxelProcessing
 import numpy as np
 import scipy
 import datetime
+import multiprocessing as mp
+
 
 if __name__ == '__main__':
 
     # Parameters
-    dimension = [2000, 1500, 1500]
-    filename = '2000_1500_1500_den10.npy'
-    #a = np.random.uniform(size=(3,9))
+    dimension = [400, 400, 400]
+    filename = '400_400_400_den10.npy'
     structure = np.ones((3,3,3))
     operation = 'grey_dilation'
-    n_block = 2
+    n_block = 400
     fakeGhost = 1
 
     # Main
@@ -22,7 +23,15 @@ if __name__ == '__main__':
     data.compressed_storage(arr_2d)
     CRS = data.load_compressed()
     data.get_CRS_mem_size(CRS)
-    data.Morphology(CRS, operation)
+    print()
+    
+    # Run Without MP module
+    # data.Morphology(CRS, operation)
+    
+    # Run with MP module
+    cpu = mp.Pool(processes=7)
+    cpu.apply(data.Morphology, args=(CRS, operation))
+    
     data.merge_blocks()
     end_t = datetime.datetime.now()
     total_t = end_t - start_t
